@@ -4885,7 +4885,6 @@ footer {
   .Summary,
   .FAQ,
   .MapExplorer,
-  .filters,
   .updates,
   .map-switcher,
   .updates-header,
@@ -5392,6 +5391,15 @@ footer {
 
     .meta-item {
       min-width: 1rem;
+    }
+  }
+
+  .Demographics {
+    margin: 0;
+    width: 100%;
+
+    .header {
+      width: calc(100% - 2rem);
     }
   }
 }

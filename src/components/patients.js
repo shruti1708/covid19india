@@ -1,6 +1,7 @@
 import PatientsView from './patientsview';
 
 import {parse} from 'date-fns';
+import {produce} from 'immer';
 import React, {useState, useEffect, useCallback} from 'react';
 import * as Icon from 'react-feather';
 import {useLockBodyScroll, useKeyPressEvent} from 'react-use';
@@ -28,6 +29,28 @@ function Patients(props) {
     setPatients(props.patients);
   }, [props.patients]);
 
+  const manageBulkEntries = useCallback((patients) => {
+    const newPatients = [];
+    patients
+      .filter((patient) => patient.currentstatus === 'Hospitalized')
+      .map((patient) => {
+        if (patient.numcases > 0) {
+          for (let i = 0; i < patient.numcases; i++) {
+            const updatedPatient = produce(patient, (draftPatient) => {
+              draftPatient.numcases = 1;
+            });
+            newPatients.push(updatedPatient);
+          }
+        } else {
+          for (let i = 0; i < -patient.numcases; i++) {
+            newPatients.shift();
+          }
+        }
+        return null;
+      });
+    return newPatients;
+  }, []);
+
   const parseByDate = useCallback((patients) => {
     const log = {};
     for (let i = 0; i < patients.length; i++) {
@@ -48,10 +71,8 @@ function Patients(props) {
   }, []);
 
   useEffect(() => {
-    if (patients.length) {
-      parseByDate(patients);
-    }
-  }, [parseByDate, patients]);
+    parseByDate(manageBulkEntries(patients));
+  }, [manageBulkEntries, parseByDate, patients]);
 
   const switchPatient = (patientIndexArg) => {
     if (patientIndexArg === '') return;
