@@ -25,10 +25,15 @@ import React, {useState, useCallback, useMemo} from 'react';
 import * as Icon from 'react-feather';
 import {Helmet} from 'react-helmet';
 import {useEffectOnce, useLocalStorage} from 'react-use';
+import useSWR from 'swr';
+
+const fetcher = (url) => axios.get(url).then((response) => response.data);
+
+const zonesFetcher = (url) =>
+  axios.get(url).then((response) => parseDistrictZones(response.data.zones));
+
 function Home(props) {
   const [states, setStates] = useState(null);
-  const [stateDistrictWiseData, setStateDistrictWiseData] = useState(null);
-  const [districtZones, setDistrictZones] = useState(null);
   const [stateTestData, setStateTestData] = useState(null);
   const [lastUpdated, setLastUpdated] = useState('');
   const [timeseries, setTimeseries] = useState(null);
@@ -46,27 +51,14 @@ function Home(props) {
   );
   const [newUpdate, setNewUpdate] = useLocalStorage('newUpdate', false);
 
-  const Bell = useMemo(
-    () => (
-      <Icon.Bell
-        onClick={() => {
-          setShowUpdates(!showUpdates);
-          setNewUpdate(false);
-        }}
-      />
-    ),
-    [setNewUpdate, showUpdates]
+  const {data: stateDistrictWiseData} = useSWR(
+    'https://api.covid19india.org/state_district_wise.json',
+    fetcher
   );
 
-  const BellOff = useMemo(
-    () => (
-      <Icon.BellOff
-        onClick={() => {
-          setShowUpdates(!showUpdates);
-        }}
-      />
-    ),
-    [showUpdates]
+  const {data: districtZones} = useSWR(
+    'https://api.covid19india.org/zones.json',
+    zonesFetcher
   );
 
   useEffectOnce(() => {
@@ -93,26 +85,16 @@ function Home(props) {
 
   const getStates = async () => {
     try {
-      const [
-        {data: statesDailyResponse},
-        {data: zonesResponse},
-      ] = await Promise.all([
+      const [{data: statesDailyResponse}] = await Promise.all([
         axios.get('https://api.covid19india.org/states_daily.json'),
-        axios.get('https://api.covid19india.org/zones.json'),
       ]);
 
-      const [
-        {data},
-        {data: stateDistrictWiseResponse},
-        {data: stateTestData},
-      ] = await Promise.all([
+      const [{data}, {data: stateTestData}] = await Promise.all([
         axios.get('https://api.covid19india.org/data.json'),
-        axios.get('https://api.covid19india.org/state_district_wise.json'),
         axios.get('https://api.covid19india.org/state_test_data.json'),
       ]);
 
       setStates(data.statewise);
-      setDistrictZones(parseDistrictZones(zonesResponse.zones));
 
       const ts = parseStateTimeseries(statesDailyResponse);
       ts['TT'] = preprocessTimeseries(data.cases_time_series);
@@ -134,7 +116,6 @@ function Home(props) {
       };
       setStateTestData(testData);
 
-      setStateDistrictWiseData(stateDistrictWiseResponse);
       setFetched(true);
     } catch (err) {
       console.log(err);
@@ -150,6 +131,29 @@ function Home(props) {
     if (!state && !district) return setRegionHighlighted(null);
     setRegionHighlighted({district, state: state.state});
   }, []);
+
+  const Bell = useMemo(
+    () => (
+      <Icon.Bell
+        onClick={() => {
+          setShowUpdates(!showUpdates);
+          setNewUpdate(false);
+        }}
+      />
+    ),
+    [setNewUpdate, showUpdates]
+  );
+
+  const BellOff = useMemo(
+    () => (
+      <Icon.BellOff
+        onClick={() => {
+          setShowUpdates(!showUpdates);
+        }}
+      />
+    ),
+    [showUpdates]
+  );
 
   return (
     <React.Fragment>
@@ -184,9 +188,9 @@ function Home(props) {
 
           {showUpdates && <Updates />}
 
-          {states && <Level data={states[0]} />}
-          {timeseries && <Minigraph timeseries={timeseries['TT']} />}
-          {stateDistrictWiseData && (
+          {fetched && <Level data={states[0]} />}
+          {fetched && <Minigraph timeseries={timeseries['TT']} />}
+          {fetched && (
             <Table
               states={states}
               summary={false}
@@ -218,7 +222,7 @@ function Home(props) {
               />
             )}
 
-            {timeseries && (
+            {fetched && (
               <TimeSeriesExplorer
                 timeseries={
                   timeseries[
